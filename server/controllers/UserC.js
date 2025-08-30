@@ -74,3 +74,68 @@ export const sendFriendRequest = async(req,res) =>{
         res.status(500).json({message:"Internal Server Error"})
     }
 }
+
+export const acceptFriendRequest = async(req,res)=>{
+    try{
+        const {id:requestId} = req.params;
+    const friendReq = await FriendRequest.findById(requestId);
+    if(!friendReq){
+        return res.status(404).json({message:"Friend request not found"});
+
+    }
+    if(friendReq.recipient.toString() != req.user.id){
+        return res.status(403).json({message:"you are not authorized to accept this request"});
+    }
+    friendReq.status = "accepted";
+    await friendReq.save();
+
+    const user = await User.findByIdAndUpdate(friendReq.sender,{
+        $addToSet:{friends:friendReq.recipient},
+    });
+    await User.findByIdAndUpdate(friendReq.recipient,{
+        $addToSet:{friends:friendReq.sender},
+    });
+     res.status(200).json({message:"Friend request accepted"});
+    }catch(error){
+        console.log("Error in acceptedFriendRequest controller",error.message);
+        res.status(500).json({message:"Internal Server Error"});
+    }
+
+}
+
+
+export const getFriendRequests = async (req,res)=>{
+    try{
+        const incomingReqs = await FriendRequest.find({
+            recipient:req.user.id,
+            status:"pending",
+        }).populate("sender","fullName profilePic nativeLanguage learningLanguage");
+
+        const acceptedReqs = await FriendRequest.find({
+            sender:req.user.id,
+            status:"accepted",
+        }).populate("recipient","fullName profilePic");
+
+        res.status(200).json({incomingReqs,acceptedReqs});
+    }catch(error){
+        console.log("Error in getPendingFriendRequest controller",error.message);
+        res.status(500).json({message:"Internal Server Error"});
+    }
+}
+
+export const getOutgoingFriendReqs = async(req,res)=>{
+    try{
+        const outgoingReqs = await FriendRequest.find({
+            sender:req.user.id,
+            status:"pending",
+        }).populate("recipient","fullName profilePic nativeLanguage learningLanguage");
+    
+    res.status(200).json(outgoingReqs);
+    
+    }catch(error){
+        console.log("Error in getOutgoingFriendReqs controller",error.message);
+        res.status(500).json({message:"Internal Server Error"});
+
+    }
+}
+
